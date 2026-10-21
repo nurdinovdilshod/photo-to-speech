@@ -1,0 +1,12 @@
+{
+  "name": "photo-to-speech",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Photo to Speech — Pronunciation Trainer. Static site, no build step.",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "start": "python3 -m http.server 8080",
+    "build:artifact": "python3 scripts/build_artifact.py"
+  }
+}

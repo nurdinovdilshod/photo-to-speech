@@ -1,0 +1,68 @@
+name: Test and deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Tesseract CLI (for model tests)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq tesseract-ocr > /dev/null
+      - name: Unit and OCR pipeline tests
+        run: node --test tests/*.test.js
+      - name: Check index.html is up to date with page.html
+        run: |
+          python3 scripts/build_artifact.py
+          git diff --exit-code index.html
+      - name: Install Playwright (CI only)
+        run: |
+          npm install --no-save --no-package-lock playwright@1.48.2
+          npx playwright install --with-deps chromium
+      - name: Browser end-to-end test (real Tesseract.js OCR)
+        run: |
+          python3 -m http.server 8080 > /dev/null 2>&1 &
+          sleep 1
+          node tests/e2e.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-screenshots
+          path: e2e-output/
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assemble site
+        run: |
+          mkdir -p _site
+          cp -r index.html styles.css app.js lib data tessdata _site/
+          touch _site/.nojekyll
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4
